@@ -1,17 +1,17 @@
-import { useGLTF } from '@react-three/drei'
+import { useCursor, useGLTF } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
-import { useLayoutEffect, useMemo, useRef } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import partMap from '../../config/mustangPartMap.json'
 
 const MODEL_PATH = '/models/ford-mustang-1969.glb'
 const BLUEPRINT_COLOR = new THREE.Color('#4da7c3')
 const BLUEPRINT_EMISSIVE = new THREE.Color('#123b4a')
-const DISPLAY_LENGTH = 8.2
+const DISPLAY_LENGTH = 9.4
 const EXPLOSION_STRENGTH = 1.8
 const BASE_ROTATION_Y = -.32
 
-type Props = { explode: number; restoration: number; reduced: boolean; pointerEnabled: boolean }
+type Props = { reduced: boolean }
 type AnimatedNode = { object: THREE.Object3D; base: THREE.Vector3; offset: THREE.Vector3; target: THREE.Vector3 }
 type MaterialState = { material: THREE.MeshStandardMaterial; color: THREE.Color; emissive: THREE.Color; opacity: number; metalness: number; roughness: number }
 
@@ -24,15 +24,20 @@ function groupOffset(group: string): THREE.Vector3 {
   return new THREE.Vector3((index % 2 ? -1 : 1) * .16, .08 + (index % 3) * .06, (index % 4 - 1.5) * .12)
 }
 
-export function MustangModel({ explode, restoration, reduced, pointerEnabled }: Props) {
+export function MustangModel({ reduced }: Props) {
   const { scene } = useGLTF(MODEL_PATH)
   const root = useRef<THREE.Group>(null)
+  const assemblyProgress = useRef(0)
+  const [hovered, setHovered] = useState(false)
+  const [hitboxSize, setHitboxSize] = useState<[number, number, number]>([1, 1, 1])
   const model = useMemo(() => scene.clone(true), [scene])
-  const animationData = useRef<{ animatedNodes: AnimatedNode[]; materialStates: MaterialState[] } | null>(null)
+  const animationData = useRef<{ animatedNodes: AnimatedNode[]; materialStates: MaterialState[]; outlineMaterials: THREE.LineBasicMaterial[] } | null>(null)
+  useCursor(hovered)
   if (animationData.current == null) {
     const nodesByName = new Map<string, THREE.Object3D>()
     const states: MaterialState[] = []
     const animated: AnimatedNode[] = []
+    const outlines: THREE.LineBasicMaterial[] = []
 
     model.traverse((object) => {
       if (object.name) nodesByName.set(object.name, object)
@@ -47,7 +52,9 @@ export function MustangModel({ explode, restoration, reduced, pointerEnabled }: 
         }
       }
       if (object.geometry.getAttribute('position')) {
-        const outline = new THREE.LineSegments(new THREE.EdgesGeometry(object.geometry, 25), new THREE.LineBasicMaterial({ color: '#9ce8f5', transparent: true, opacity: .3 }))
+        const outlineMaterial = new THREE.LineBasicMaterial({ color: '#9ce8f5', transparent: true, opacity: .38 })
+        const outline = new THREE.LineSegments(new THREE.EdgesGeometry(object.geometry, 25), outlineMaterial)
+        outlines.push(outlineMaterial)
         object.add(outline)
       }
     })
@@ -60,7 +67,7 @@ export function MustangModel({ explode, restoration, reduced, pointerEnabled }: 
       }
     }
 
-    animationData.current = { animatedNodes: animated, materialStates: states }
+    animationData.current = { animatedNodes: animated, materialStates: states, outlineMaterials: outlines }
   }
 
   useLayoutEffect(() => {
@@ -73,31 +80,41 @@ export function MustangModel({ explode, restoration, reduced, pointerEnabled }: 
 
     model.position.copy(center).multiplyScalar(-scale)
     model.scale.setScalar(scale)
+    setHitboxSize([size.x * scale * 1.08, size.y * scale * 1.2, size.z * scale * 1.12])
   }, [model])
 
   useFrame((state, delta) => {
-    const { animatedNodes, materialStates } = animationData.current!
-    const targetExplosion = reduced ? 0 : explode
+    const { animatedNodes, materialStates, outlineMaterials } = animationData.current!
+    assemblyProgress.current = reduced ? 1 : THREE.MathUtils.damp(assemblyProgress.current, hovered ? 1 : 0, 4.5, delta)
+    const explosionProgress = 1 - assemblyProgress.current
+    const restorationProgress = assemblyProgress.current
     const damping = 1 - Math.exp(-7 * delta)
     for (const node of animatedNodes) {
-      node.target.copy(node.base).addScaledVector(node.offset, targetExplosion * EXPLOSION_STRENGTH)
+      node.target.copy(node.base).addScaledVector(node.offset, explosionProgress * EXPLOSION_STRENGTH)
       node.object.position.lerp(node.target, damping)
     }
     for (const { material, color, emissive, opacity, metalness, roughness } of materialStates) {
-      material.color.lerpColors(BLUEPRINT_COLOR, color, restoration)
-      material.emissive.lerpColors(BLUEPRINT_EMISSIVE, emissive, restoration)
-      material.opacity = THREE.MathUtils.lerp(.46, opacity, restoration)
-      material.transparent = restoration < .99 || opacity < 1
-      material.metalness = THREE.MathUtils.lerp(.18, metalness, restoration)
-      material.roughness = THREE.MathUtils.lerp(.46, roughness, restoration)
+      material.color.lerpColors(BLUEPRINT_COLOR, color, restorationProgress)
+      material.emissive.lerpColors(BLUEPRINT_EMISSIVE, emissive, restorationProgress)
+      material.opacity = THREE.MathUtils.lerp(.46, opacity, restorationProgress)
+      material.transparent = restorationProgress < .99 || opacity < 1
+      material.metalness = THREE.MathUtils.lerp(.18, metalness, restorationProgress)
+      material.roughness = THREE.MathUtils.lerp(.46, roughness, restorationProgress)
     }
+    for (const outline of outlineMaterials) { outline.opacity = THREE.MathUtils.lerp(.38, 0, restorationProgress); outline.visible = outline.opacity > .01 }
     if (root.current && !reduced) {
-      root.current.rotation.y = THREE.MathUtils.damp(root.current.rotation.y, BASE_ROTATION_Y + (pointerEnabled ? state.pointer.x * .18 : 0), 3, delta)
-      root.current.rotation.x = THREE.MathUtils.damp(root.current.rotation.x, pointerEnabled ? -state.pointer.y * .08 : 0, 3, delta)
+      root.current.rotation.y = THREE.MathUtils.damp(root.current.rotation.y, BASE_ROTATION_Y + (hovered ? state.pointer.x * .18 : 0), 3, delta)
+      root.current.rotation.x = THREE.MathUtils.damp(root.current.rotation.x, hovered ? -state.pointer.y * .08 : 0, 3, delta)
     }
   })
 
-  return <group ref={root} rotation={[0, BASE_ROTATION_Y, 0]}><primitive object={model} /></group>
+  return <group ref={root} position={[.25, -.05, 0]} rotation={[0, BASE_ROTATION_Y, 0]}>
+    <primitive object={model} />
+    <mesh onPointerOver={(event) => { if (event.nativeEvent.pointerType !== 'touch') { event.stopPropagation(); setHovered(true) } }} onPointerOut={(event) => { if (event.nativeEvent.pointerType !== 'touch') { event.stopPropagation(); setHovered(false) } }} onClick={(event) => { if ('pointerType' in event.nativeEvent && event.nativeEvent.pointerType === 'touch') { event.stopPropagation(); setHovered((value) => !value) } }}>
+      <boxGeometry args={hitboxSize} />
+      <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
+    </mesh>
+  </group>
 }
 
 useGLTF.preload(MODEL_PATH)
