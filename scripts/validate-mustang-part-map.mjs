@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 
-const modelPath = new URL('../public/brand/models/ford-mustang-1969.glb', import.meta.url)
-const mapPath = new URL('../src/config/mustangPartMap.json.json', import.meta.url)
+const modelPath = new URL('../public/models/ford-mustang-1969.glb', import.meta.url)
+const mapPath = new URL('../src/config/mustangPartMap.json', import.meta.url)
 const glbMagic = 0x46546c67
 const jsonChunkType = 0x4e4f534a
 
