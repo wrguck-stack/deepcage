@@ -20,7 +20,7 @@ function Part({ name, explode, children, label }: PartProps) {
   return <group ref={group} name={name} onPointerOver={(event) => { event.stopPropagation(); setHovered(true) }} onPointerOut={() => setHovered(false)}>{children}{hovered && label && <mesh position={[0, 0, 0]}><sphereGeometry args={[.03]} /><meshBasicMaterial color="#bdf4ff" /></mesh>}</group>
 }
 
-function loftGeometry() {
+function loftGeometry(): THREE.BufferGeometry {
   const positions: number[] = []; const indices: number[] = []; const sides = 8
   carSections.forEach(([x, bottom, shoulder, top]) => {
     const ring = [[bottom, 0], [bottom + .08, .78], [shoulder, 1], [top, .78], [top + .04, 0], [top, -.78], [shoulder, -1], [bottom + .08, -.78]]
@@ -28,7 +28,13 @@ function loftGeometry() {
   })
   for (let i = 0; i < carSections.length - 1; i++) for (let j = 0; j < sides; j++) { const a = i * sides + j; const b = i * sides + (j + 1) % sides; indices.push(a, b, a + sides, b, b + sides, a + sides) }
   for (let j = 1; j < sides - 1; j++) { indices.push(0, j + 1, j); const e = (carSections.length - 1) * sides; indices.push(e, e + j, e + j + 1) }
-  return new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)).setIndex(indices).computeVertexNormals()
+
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  geometry.setIndex(indices)
+  geometry.computeVertexNormals()
+
+  return geometry
 }
 
 function Finish({ restoration }: { restoration: number }) {
@@ -42,7 +48,7 @@ function Wheel({ name, brake, position, explode, restoration }: { name: CarPartN
 }
 
 export function ProceduralClassicCar({ explode, restoration, reduced }: Props) {
-  const body = useMemo(loftGeometry, [])
+  const body = useMemo(() => loftGeometry(), [])
   const root = useRef<THREE.Group>(null)
   useFrame((state) => { if (root.current && !reduced) { root.current.rotation.y = THREE.MathUtils.damp(root.current.rotation.y, state.pointer.x * .17 - .5, 3, state.clock.getDelta()); root.current.rotation.x = THREE.MathUtils.damp(root.current.rotation.x, -state.pointer.y * .07, 3, state.clock.getDelta()) } })
   const chrome = <meshStandardMaterial color="#c5d2d3" metalness={.95} roughness={.2} />
