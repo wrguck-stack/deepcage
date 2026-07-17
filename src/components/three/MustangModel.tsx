@@ -10,6 +10,8 @@ const BLUEPRINT_EMISSIVE = new THREE.Color('#201927')
 const DISPLAY_LENGTH = 9.4
 const EXPLOSION_STRENGTH = 2.3
 const BASE_ROTATION_Y = -.32
+const FRONT_ROTATION_Y = Math.atan2(-6.8, 8)
+const AUTO_ROTATION_SPEED = Math.PI / 18
 const EXPLODED_OFFSETS: Record<string, [number, number, number]> = {
   bodyPaint: [0, .35, 0], darkMechanical: [0, -.45, 0], brakes: [0, -.7, 0], chrome: [0, .05, .25], clearGlass: [0, .7, 0], interior: [0, .25, -.3], mirror: [0, .65, .85], frontLights: [-.55, .18, 0], rearLights: [.55, .18, 0], allWheelDetailsCombined: [0, -.05, .65], wheelFrontRight: [.65, -.1, .42], wheelFrontLeft: [-.65, -.1, .42], wheelRearLeft: [-.65, -.1, -.42], wheelRearRight: [.65, -.1, -.42], allTiresCombined: [0, -.28, 0], licensePlate: [-.75, .12, 0],
 }
@@ -92,6 +94,10 @@ function writeBaseWorldPosition(node: AnimatedNode) {
   if (node.object.parent) node.baseWorld.copy(node.base).applyMatrix4(node.object.parent.matrixWorld)
 }
 
+function nearestEquivalentAngle(angle: number, reference: number) {
+  return angle + Math.round((reference - angle) / (Math.PI * 2)) * Math.PI * 2
+}
+
 export function MustangModel({ reduced, assembled }: Props) {
   const { scene } = useGLTF(MODEL_PATH)
   const root = useRef<THREE.Group>(null)
@@ -120,7 +126,7 @@ export function MustangModel({ reduced, assembled }: Props) {
     prepared.model.updateMatrixWorld(true)
   }, [prepared, reduced])
 
-  useFrame((state, delta) => {
+  useFrame((_, delta) => {
     const activePrepared = preparedRef.current
     const targetAssembly = reduced ? 1 : assembled ? 1 : 0
     assemblyProgress.current = THREE.MathUtils.damp(assemblyProgress.current, targetAssembly, 5, delta)
@@ -137,8 +143,13 @@ export function MustangModel({ reduced, assembled }: Props) {
     for (const materialState of activePrepared.materialStates) applyMaterialState(materialState, restorationProgress)
     for (const outline of activePrepared.outlineMaterials) applyOutlineState(outline, restorationProgress)
     if (root.current && !reduced) {
-      root.current.rotation.y = THREE.MathUtils.damp(root.current.rotation.y, BASE_ROTATION_Y + (assembled ? state.pointer.x * .18 : 0), 3, delta)
-      root.current.rotation.x = THREE.MathUtils.damp(root.current.rotation.x, assembled ? -state.pointer.y * .08 : 0, 3, delta)
+      if (assembled) {
+        const frontAngle = nearestEquivalentAngle(FRONT_ROTATION_Y, root.current.rotation.y)
+        root.current.rotation.y = THREE.MathUtils.damp(root.current.rotation.y, frontAngle, 3, delta)
+      } else {
+        root.current.rotation.y += AUTO_ROTATION_SPEED * delta
+      }
+      root.current.rotation.x = THREE.MathUtils.damp(root.current.rotation.x, 0, 3, delta)
     }
 
     if (import.meta.env.DEV && assemblyProgress.current < .01 && !validationState.current.exploded) {
