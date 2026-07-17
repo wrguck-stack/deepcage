@@ -24,9 +24,9 @@ function LoadingIndicator() {
 function Scene({ reduced, assembled }: { reduced: boolean; assembled: boolean }) {
   return <>
     <PerspectiveCamera makeDefault position={[-6.8, 2.8, 8]} fov={30} near={.1} far={100} onUpdate={(camera: THREE.PerspectiveCamera) => camera.lookAt(0, 0, 0)} />
-    <ambientLight intensity={.8} color="#b9d9e3" />
-    <directionalLight position={[-4, 7, 5]} intensity={3.4} color="#e0f4ff" />
-    <directionalLight position={[5, 3, -4]} intensity={1.7} color="#70b9d0" />
+    <ambientLight intensity={.8} color="#d8e2e3" />
+    <directionalLight position={[-4, 7, 5]} intensity={3.4} color="#f0eadf" />
+    <directionalLight position={[5, 3, -4]} intensity={1.7} color="#b52f39" />
     <CarBlueprintEnvironment reduced={reduced} />
     <Suspense fallback={<LoadingIndicator />}><MustangModel reduced={reduced} assembled={assembled} /></Suspense>
   </>
