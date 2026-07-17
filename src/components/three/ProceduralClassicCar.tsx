@@ -1,6 +1,6 @@
 import { Edges, RoundedBox, useCursor } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import * as THREE from 'three'
 import { carDimensions, carSections, explodeConfig, type CarPartName } from '../../config/carGeometry'
 
@@ -39,8 +39,12 @@ function loftGeometry(): THREE.BufferGeometry {
 
 function Finish({ restoration }: { restoration: number }) {
   const material = useRef<THREE.MeshStandardMaterial>(null)
-  useFrame(() => { if (material.current) { material.current.color.lerp(new THREE.Color(carDimensions.blueprintColor), 0); material.current.opacity = THREE.MathUtils.lerp(.15, 1, restoration); material.current.metalness = THREE.MathUtils.lerp(.25, .75, restoration); material.current.roughness = THREE.MathUtils.lerp(.45, .2, restoration) } })
-  return <meshStandardMaterial ref={material} color={carDimensions.bodyColor} transparent side={THREE.DoubleSide} />
+  const blueprintColor = useMemo(() => new THREE.Color('#397f99'), [])
+  const restoredColor = useMemo(() => new THREE.Color(carDimensions.bodyColor), [])
+  const blueprintEmissive = useMemo(() => new THREE.Color('#173f50'), [])
+  const restoredEmissive = useMemo(() => new THREE.Color('#000000'), [])
+  useFrame(() => { if (material.current) { material.current.color.lerpColors(blueprintColor, restoredColor, restoration); material.current.emissive.lerpColors(blueprintEmissive, restoredEmissive, restoration); material.current.opacity = THREE.MathUtils.lerp(.35, 1, restoration); material.current.metalness = THREE.MathUtils.lerp(.25, .75, restoration); material.current.roughness = THREE.MathUtils.lerp(.45, .2, restoration) } })
+  return <meshStandardMaterial ref={material} color="#397f99" emissive="#173f50" emissiveIntensity={.35} opacity={.35} transparent side={THREE.DoubleSide} />
 }
 
 function Wheel({ name, brake, position, explode, restoration }: { name: CarPartName; brake: CarPartName; position: [number, number, number]; explode: number; restoration: number }) {
@@ -50,9 +54,16 @@ function Wheel({ name, brake, position, explode, restoration }: { name: CarPartN
 export function ProceduralClassicCar({ explode, restoration, reduced }: Props) {
   const body = useMemo(() => loftGeometry(), [])
   const root = useRef<THREE.Group>(null)
+  useEffect(() => {
+    if (!import.meta.env.DEV || !root.current) return
+    const bounds = new THREE.Box3().setFromObject(root.current)
+    const size = bounds.getSize(new THREE.Vector3())
+    const center = bounds.getCenter(new THREE.Vector3())
+    if (!Number.isFinite(size.x) || !Number.isFinite(size.y) || !Number.isFinite(size.z)) console.warn('Procedural car has invalid bounds.', { center, size })
+  }, [])
   useFrame((state) => { if (root.current && !reduced) { root.current.rotation.y = THREE.MathUtils.damp(root.current.rotation.y, state.pointer.x * .17 - .5, 3, state.clock.getDelta()); root.current.rotation.x = THREE.MathUtils.damp(root.current.rotation.x, -state.pointer.y * .07, 3, state.clock.getDelta()) } })
   const chrome = <meshStandardMaterial color="#c5d2d3" metalness={.95} roughness={.2} />
-  return <group ref={root} rotation={[0, -.5, 0]} scale={.88}>
+  return <group ref={root} position={[0, 0, 0]} rotation={[0, -.5, 0]} scale={.88}>
     <Part name="MainBody" explode={explode} label="BODYWORK"><mesh geometry={body}><Finish restoration={restoration} /><Edges color="#89d7ed" threshold={20} /></mesh></Part>
     <Part name="Chassis" explode={explode} label="CHASSIS"><group position={[0, -.57, 0]}><RoundedBox args={[6.5, .16, .16]} position={[0, 0, 1.05]}>{chrome}</RoundedBox><RoundedBox args={[6.5, .16, .16]} position={[0, 0, -1.05]}>{chrome}</RoundedBox>{[-2.2, 0, 2.2].map(x => <RoundedBox key={x} args={[.16, .14, 2.25]} position={[x, 0, 0]}>{chrome}</RoundedBox>)}</group></Part>
     <Part name="Hood" explode={explode} label="BODYWORK"><RoundedBox args={[2.35, .12, 2.22]} radius={.12} smoothness={4} position={[-2.02, .48, 0]}><Finish restoration={restoration} /></RoundedBox></Part>
