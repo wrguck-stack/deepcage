@@ -1,10 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+
+function detectWebGLSupport() {
+  try {
+    const canvas = document.createElement('canvas')
+    return Boolean(canvas.getContext('webgl2') || canvas.getContext('webgl'))
+  } catch {
+    return false
+  }
+}
 
 export function useWebGLSupport() {
-  const [supported, setSupported] = useState<boolean | null>(null)
-  useEffect(() => {
-    try { setSupported(Boolean(document.createElement('canvas').getContext('webgl2') || document.createElement('canvas').getContext('webgl'))) }
-    catch { setSupported(false) }
-  }, [])
+  const [supported] = useState(detectWebGLSupport)
   return supported
 }

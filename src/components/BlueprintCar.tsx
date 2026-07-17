@@ -4,14 +4,14 @@ import { useReducedMotion } from '../hooks/useReducedMotion'
 export function BlueprintCar() {
   const root = useRef<HTMLDivElement>(null)
   const reduced = useReducedMotion()
-  let frame = 0
+  const frame = useRef(0)
   const move = (event: React.PointerEvent<HTMLDivElement>) => {
     if (reduced || !root.current) return
     const bounds = root.current.getBoundingClientRect()
     const x = (event.clientX - bounds.left) / bounds.width - .5
     const y = (event.clientY - bounds.top) / bounds.height - .5
-    cancelAnimationFrame(frame)
-    frame = requestAnimationFrame(() => root.current?.style.setProperty('--explode', `${Math.min(1, Math.hypot(x, y) * 2.2)}`))
+    cancelAnimationFrame(frame.current)
+    frame.current = requestAnimationFrame(() => root.current?.style.setProperty('--explode', `${Math.min(1, Math.hypot(x, y) * 2.2)}`))
     root.current.style.setProperty('--tilt-x', `${x * 10}deg`)
     root.current.style.setProperty('--tilt-y', `${y * -8}deg`)
   }
