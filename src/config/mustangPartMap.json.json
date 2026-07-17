@@ -1,0 +1,172 @@
+{
+  "model": "ford_mustang_1969_web_safe.glb",
+  "coordinateSystem": "glTF: X left/right, Y up/down, Z front/rear",
+  "limitations": [
+    "The source asset is grouped mainly by material, not by semantic vehicle parts.",
+    "Body panels such as doors and hood are mixed across the carpaint meshes.",
+    "All four tires are combined in node Object_144 and cannot move independently without geometry editing.",
+    "Small repeated wheel details are combined in node Object_126 and cannot move independently without geometry editing."
+  ],
+  "groups": {
+    "bodyPaint": [
+      "Object_60",
+      "Object_62",
+      "Object_64",
+      "Object_66"
+    ],
+    "darkMechanical": [
+      "Object_20",
+      "Object_22",
+      "Object_24",
+      "Object_26",
+      "Object_28",
+      "Object_30",
+      "Object_32",
+      "Object_34",
+      "Object_36",
+      "Object_38",
+      "Object_40",
+      "Object_42",
+      "Object_44",
+      "Object_46",
+      "Object_48",
+      "Object_50",
+      "Object_52",
+      "Object_54"
+    ],
+    "brakes": [
+      "Object_56",
+      "Object_58"
+    ],
+    "chrome": [
+      "Object_68",
+      "Object_70",
+      "Object_72",
+      "Object_74",
+      "Object_76",
+      "Object_78",
+      "Object_80",
+      "Object_82",
+      "Object_84",
+      "Object_86",
+      "Object_88",
+      "Object_90",
+      "Object_92",
+      "Object_94",
+      "Object_96",
+      "Object_98",
+      "Object_100",
+      "Object_102",
+      "Object_104"
+    ],
+    "clearGlass": [
+      "Object_106",
+      "Object_108",
+      "Object_110",
+      "Object_112",
+      "Object_146"
+    ],
+    "interior": [
+      "Object_114",
+      "Object_116"
+    ],
+    "mirror": [
+      "Object_118"
+    ],
+    "frontLights": [
+      "Object_120"
+    ],
+    "rearLights": [
+      "Object_122",
+      "Object_124"
+    ],
+    "allWheelDetailsCombined": [
+      "Object_126"
+    ],
+    "wheelFrontRight": [
+      "Object_128",
+      "Object_130"
+    ],
+    "wheelFrontLeft": [
+      "Object_132",
+      "Object_134"
+    ],
+    "wheelRearLeft": [
+      "Object_136",
+      "Object_138"
+    ],
+    "wheelRearRight": [
+      "Object_140",
+      "Object_142"
+    ],
+    "allTiresCombined": [
+      "Object_144"
+    ],
+    "licensePlate": [
+      "Object_6",
+      "Object_8",
+      "Object_10",
+      "Object_12",
+      "Object_14",
+      "Object_16",
+      "Object_18"
+    ]
+  },
+  "recommendedExplodedView": {
+    "bodyPaint": [
+      0,
+      0.35,
+      0
+    ],
+    "darkMechanical": [
+      0,
+      -0.45,
+      0
+    ],
+    "chrome": [
+      0,
+      0.05,
+      0.25
+    ],
+    "clearGlass": [
+      0,
+      0.7,
+      0
+    ],
+    "interior": [
+      0,
+      0.25,
+      0
+    ],
+    "allWheelDetailsCombined": [
+      0,
+      0,
+      0
+    ],
+    "wheelFrontRight": [
+      0.55,
+      0,
+      0.35
+    ],
+    "wheelFrontLeft": [
+      -0.55,
+      0,
+      0.35
+    ],
+    "wheelRearLeft": [
+      -0.55,
+      0,
+      -0.35
+    ],
+    "wheelRearRight": [
+      0.55,
+      0,
+      -0.35
+    ],
+    "allTiresCombined": [
+      0,
+      0,
+      0
+    ]
+  }
+}
