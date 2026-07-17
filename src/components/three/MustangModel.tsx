@@ -15,7 +15,7 @@ const EXPLODED_OFFSETS: Record<string, [number, number, number]> = {
 }
 
 type Props = { reduced: boolean; assembled: boolean }
-type AnimatedNode = { object: THREE.Object3D; base: THREE.Vector3; offset: THREE.Vector3; target: THREE.Vector3 }
+type AnimatedNode = { object: THREE.Object3D; base: THREE.Vector3; displayOffset: THREE.Vector3; target: THREE.Vector3; baseWorld: THREE.Vector3; worldPosition: THREE.Vector3 }
 type MaterialState = { material: THREE.MeshStandardMaterial; color: THREE.Color; emissive: THREE.Color; emissiveIntensity: number; metalness: number; roughness: number; originalOpacity: number; originalTransparent: boolean; originalDepthWrite: boolean; originalDepthTest: boolean }
 type PreparedModel = { model: THREE.Group; animatedNodes: AnimatedNode[]; materialStates: MaterialState[]; outlineMaterials: THREE.LineBasicMaterial[]; meshes: THREE.Mesh[] }
 
@@ -54,12 +54,22 @@ function prepareModel(scene: THREE.Group): PreparedModel {
     }
   })
 
+  const vehicleCenter = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3())
   const animatedNodes: AnimatedNode[] = []
   for (const [group, names] of Object.entries(partMap.groups) as [string, string[]][]) {
-    const offset = groupOffset(group)
-    for (const name of names) {
+    for (const [nodeIndex, name] of names.entries()) {
       const object = nodesByName.get(name)
-      if (object) animatedNodes.push({ object, base: object.position.clone(), offset: offset.clone(), target: object.position.clone() })
+      if (!object) continue
+      const centeredIndex = names.length > 1 ? nodeIndex / (names.length - 1) - .5 : 0
+      const nodeCenter = new THREE.Box3().setFromObject(object).getCenter(new THREE.Vector3())
+      const radialDirection = nodeCenter.sub(vehicleCenter)
+      radialDirection.y = 0
+      if (radialDirection.lengthSq() > .0001) radialDirection.normalize()
+      const displayOffset = groupOffset(group)
+      displayOffset.addScaledVector(radialDirection, .35 + Math.abs(centeredIndex) * .35)
+      displayOffset.y += centeredIndex * 1.4
+      displayOffset.z += centeredIndex * .45
+      animatedNodes.push({ object, base: object.position.clone(), displayOffset, target: object.position.clone(), baseWorld: new THREE.Vector3(), worldPosition: new THREE.Vector3() })
     }
   }
   return { model, animatedNodes, materialStates, outlineMaterials, meshes }
@@ -78,10 +88,15 @@ function applyOutlineState(outline: THREE.LineBasicMaterial, progress: number) {
   outline.opacity = THREE.MathUtils.lerp(.52, .08, progress)
 }
 
+function writeBaseWorldPosition(node: AnimatedNode) {
+  if (node.object.parent) node.baseWorld.copy(node.base).applyMatrix4(node.object.parent.matrixWorld)
+}
+
 export function MustangModel({ reduced, assembled }: Props) {
   const { scene } = useGLTF(MODEL_PATH)
   const root = useRef<THREE.Group>(null)
   const assemblyProgress = useRef(0)
+  const displayScale = useRef(1)
   const validationState = useRef({ exploded: false, assembled: false })
   const prepared = useMemo(() => prepareModel(scene), [scene])
   const preparedRef = useRef(prepared)
@@ -92,13 +107,17 @@ export function MustangModel({ reduced, assembled }: Props) {
     const size = bounds.getSize(new THREE.Vector3())
     const center = bounds.getCenter(new THREE.Vector3())
     const scale = Math.max(size.x, size.y, size.z) > 0 ? DISPLAY_LENGTH / Math.max(size.x, size.y, size.z) : 1
+    if (!Number.isFinite(scale) || scale <= 0) throw new Error('Invalid Mustang display scale')
+    displayScale.current = scale
     prepared.model.position.copy(center).multiplyScalar(-scale)
     prepared.model.scale.setScalar(scale)
+    for (const node of prepared.animatedNodes) node.object.position.copy(node.base)
+    root.current?.updateMatrixWorld(true)
+    for (const node of prepared.animatedNodes) writeBaseWorldPosition(node)
     assemblyProgress.current = reduced ? 1 : 0
-    for (const node of prepared.animatedNodes) {
-      node.object.position.copy(node.base)
-      if (!reduced) node.object.position.addScaledVector(node.offset, EXPLOSION_STRENGTH)
-    }
+    const localExplosionFactor = EXPLOSION_STRENGTH / Math.max(scale, .00000001)
+    if (!reduced) for (const node of prepared.animatedNodes) node.object.position.addScaledVector(node.displayOffset, localExplosionFactor)
+    prepared.model.updateMatrixWorld(true)
   }, [prepared, reduced])
 
   useFrame((state, delta) => {
@@ -108,9 +127,11 @@ export function MustangModel({ reduced, assembled }: Props) {
     const explosionProgress = 1 - assemblyProgress.current
     const restorationProgress = assemblyProgress.current
     const positionDamping = 1 - Math.exp(-7 * delta)
+    const safeScale = Math.max(displayScale.current, .00000001)
+    const localExplosionFactor = explosionProgress * EXPLOSION_STRENGTH / safeScale
 
     for (const node of activePrepared.animatedNodes) {
-      node.target.copy(node.base).addScaledVector(node.offset, explosionProgress * EXPLOSION_STRENGTH)
+      node.target.copy(node.base).addScaledVector(node.displayOffset, localExplosionFactor)
       node.object.position.lerp(node.target, positionDamping)
     }
     for (const materialState of activePrepared.materialStates) applyMaterialState(materialState, restorationProgress)
@@ -121,25 +142,33 @@ export function MustangModel({ reduced, assembled }: Props) {
     }
 
     if (import.meta.env.DEV && assemblyProgress.current < .01 && !validationState.current.exploded) {
-        let movedNodes = 0
+        root.current?.updateMatrixWorld(true)
+        let movedOverPoint15 = 0
+        let movedOverPoint40 = 0
         let maxDistance = 0
         for (const node of activePrepared.animatedNodes) {
-          const distance = node.object.position.distanceTo(node.base)
-          if (distance > .05) movedNodes += 1
+          writeBaseWorldPosition(node)
+          node.object.getWorldPosition(node.worldPosition)
+          const distance = node.worldPosition.distanceTo(node.baseWorld)
+          if (distance > .15) movedOverPoint15 += 1
+          if (distance > .40) movedOverPoint40 += 1
           maxDistance = Math.max(maxDistance, distance)
         }
         const allVisible = activePrepared.meshes.every((mesh) => mesh.visible)
         const validMaterials = activePrepared.materialStates.every(({ material, originalOpacity, originalTransparent, originalDepthWrite, originalDepthTest }) => Number.isFinite(material.opacity) && Number.isFinite(material.metalness) && Number.isFinite(material.roughness) && material.opacity === originalOpacity && material.transparent === originalTransparent && material.depthWrite === originalDepthWrite && material.depthTest === originalDepthTest)
-        console.info('Mustang exploded-state check', { movedNodes, maxDistance, allVisible, validMaterials })
+        if (movedOverPoint15 < 20 || movedOverPoint40 < 10 || maxDistance <= .80 || !allVisible || !validMaterials) console.error('Exploded view failed: world-space node displacement is not visible.', { movedOverPoint15, movedOverPoint40, maxDistance, allVisible, validMaterials })
+        else console.info('Mustang exploded-state check', { movedOverPoint15, movedOverPoint40, maxDistance, allVisible, validMaterials })
         validationState.current.exploded = true
         validationState.current.assembled = false
     }
     if (import.meta.env.DEV && assemblyProgress.current > .99 && !validationState.current.assembled) {
+        root.current?.updateMatrixWorld(true)
         let maxDistance = 0
-        for (const node of activePrepared.animatedNodes) maxDistance = Math.max(maxDistance, node.object.position.distanceTo(node.base))
+        for (const node of activePrepared.animatedNodes) { writeBaseWorldPosition(node); node.object.getWorldPosition(node.worldPosition); maxDistance = Math.max(maxDistance, node.worldPosition.distanceTo(node.baseWorld)) }
         const allVisible = activePrepared.meshes.every((mesh) => mesh.visible)
         const validMaterials = activePrepared.materialStates.every(({ material, originalOpacity, originalTransparent, originalDepthWrite, originalDepthTest }) => Number.isFinite(material.opacity) && Number.isFinite(material.metalness) && Number.isFinite(material.roughness) && material.opacity === originalOpacity && material.transparent === originalTransparent && material.depthWrite === originalDepthWrite && material.depthTest === originalDepthTest)
-        console.info('Mustang assembled-state check', { maxDistance, allVisible, validMaterials, meshCount: activePrepared.meshes.length })
+        if (maxDistance >= .02 || !allVisible || !validMaterials) console.error('Mustang assembled-state check failed.', { maxDistance, allVisible, validMaterials, meshCount: activePrepared.meshes.length })
+        else console.info('Mustang assembled-state check', { maxDistance, allVisible, validMaterials, meshCount: activePrepared.meshes.length })
         validationState.current.assembled = true
         validationState.current.exploded = false
     }
