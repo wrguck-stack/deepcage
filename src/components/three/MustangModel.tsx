@@ -7,9 +7,12 @@ import partMap from '../../config/mustangPartMap.json'
 const MODEL_PATH = '/models/ford-mustang-1969.glb'
 const BLUEPRINT_COLOR = new THREE.Color('#4da7c3')
 const BLUEPRINT_EMISSIVE = new THREE.Color('#123b4a')
+const DISPLAY_LENGTH = 8.2
+const EXPLOSION_STRENGTH = 1.8
+const BASE_ROTATION_Y = -.32
 
-type Props = { explode: number; restoration: number; reduced: boolean }
-type AnimatedNode = { object: THREE.Object3D; base: THREE.Vector3; offset: THREE.Vector3 }
+type Props = { explode: number; restoration: number; reduced: boolean; pointerEnabled: boolean }
+type AnimatedNode = { object: THREE.Object3D; base: THREE.Vector3; offset: THREE.Vector3; target: THREE.Vector3 }
 type MaterialState = { material: THREE.MeshStandardMaterial; color: THREE.Color; emissive: THREE.Color; opacity: number; metalness: number; roughness: number }
 
 function groupOffset(group: string): THREE.Vector3 {
@@ -21,7 +24,7 @@ function groupOffset(group: string): THREE.Vector3 {
   return new THREE.Vector3((index % 2 ? -1 : 1) * .16, .08 + (index % 3) * .06, (index % 4 - 1.5) * .12)
 }
 
-export function MustangModel({ explode, restoration, reduced }: Props) {
+export function MustangModel({ explode, restoration, reduced, pointerEnabled }: Props) {
   const { scene } = useGLTF(MODEL_PATH)
   const root = useRef<THREE.Group>(null)
   const model = useMemo(() => scene.clone(true), [scene])
@@ -53,7 +56,7 @@ export function MustangModel({ explode, restoration, reduced }: Props) {
       const offset = groupOffset(group)
       for (const name of names) {
         const object = nodesByName.get(name)
-        if (object) animated.push({ object, base: object.position.clone(), offset })
+        if (object) animated.push({ object, base: object.position.clone(), offset: offset.clone(), target: object.position.clone() })
       }
     }
 
@@ -66,7 +69,7 @@ export function MustangModel({ explode, restoration, reduced }: Props) {
     const size = bounds.getSize(new THREE.Vector3())
     const center = bounds.getCenter(new THREE.Vector3())
     const largestDimension = Math.max(size.x, size.y, size.z)
-    const scale = largestDimension > 0 ? 6.3 / largestDimension : 1
+    const scale = largestDimension > 0 ? DISPLAY_LENGTH / largestDimension : 1
 
     model.position.copy(center).multiplyScalar(-scale)
     model.scale.setScalar(scale)
@@ -75,8 +78,10 @@ export function MustangModel({ explode, restoration, reduced }: Props) {
   useFrame((state, delta) => {
     const { animatedNodes, materialStates } = animationData.current!
     const targetExplosion = reduced ? 0 : explode
-    for (const { object, base, offset } of animatedNodes) {
-      object.position.lerpVectors(base, base.clone().addScaledVector(offset, targetExplosion), Math.min(1, delta * 5))
+    const damping = 1 - Math.exp(-7 * delta)
+    for (const node of animatedNodes) {
+      node.target.copy(node.base).addScaledVector(node.offset, targetExplosion * EXPLOSION_STRENGTH)
+      node.object.position.lerp(node.target, damping)
     }
     for (const { material, color, emissive, opacity, metalness, roughness } of materialStates) {
       material.color.lerpColors(BLUEPRINT_COLOR, color, restoration)
@@ -87,12 +92,12 @@ export function MustangModel({ explode, restoration, reduced }: Props) {
       material.roughness = THREE.MathUtils.lerp(.46, roughness, restoration)
     }
     if (root.current && !reduced) {
-      root.current.rotation.y = THREE.MathUtils.damp(root.current.rotation.y, state.pointer.x * .22 - .5, 3, delta)
-      root.current.rotation.x = THREE.MathUtils.damp(root.current.rotation.x, -state.pointer.y * .08, 3, delta)
+      root.current.rotation.y = THREE.MathUtils.damp(root.current.rotation.y, BASE_ROTATION_Y + (pointerEnabled ? state.pointer.x * .18 : 0), 3, delta)
+      root.current.rotation.x = THREE.MathUtils.damp(root.current.rotation.x, pointerEnabled ? -state.pointer.y * .08 : 0, 3, delta)
     }
   })
 
-  return <group ref={root} rotation={[0, -.5, 0]}><primitive object={model} /></group>
+  return <group ref={root} rotation={[0, BASE_ROTATION_Y, 0]}><primitive object={model} /></group>
 }
 
 useGLTF.preload(MODEL_PATH)
