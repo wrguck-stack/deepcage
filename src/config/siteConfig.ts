@@ -1,0 +1,20 @@
+export const siteConfig = {
+  name: 'DEEP CAGE',
+  slogan: 'US CAR TUNING & RESTORATIONS',
+  phone: 'Telefon auf Anfrage',
+  email: 'E-Mail auf Anfrage',
+  address: 'Werkstattadresse auf Anfrage',
+  hours: 'Termine nach Vereinbarung',
+  foundingYear: undefined as number | undefined,
+  primaryCta: 'Fahrzeug anfragen',
+  brands: ['CHEVROLET', 'CADILLAC', 'CORVETTE', 'AMERICAN V8'],
+  services: [
+    ['01', 'WARTUNG & INSPEKTION', 'Präventive Oldtimer-Wartung, abgestimmt auf Fahrprofil und Substanz.'],
+    ['02', 'V8 / ANTRIEB', 'Motor- und Getriebearbeiten, V8-Diagnose und präzise Abstimmung.'],
+    ['03', 'FAHRWERK & BREMSE', 'Sicherheit, Fahrgefühl und Performance – vom Lager bis zur Achsgeometrie.'],
+    ['04', 'ELEKTRIK & DIAGNOSE', 'Systematische Fehlersuche in klassischer und nachgerüsteter Fahrzeugtechnik.'],
+    ['05', 'KAROSSERIE & RESTAURIERUNG', 'Substanz erhalten, Aufbau planen, Details konsequent zu Ende führen.'],
+    ['06', 'ORIGINALTEILE & OPTIMIERUNG', 'Teilebeschaffung, technische Verbesserungen und Vorbereitung zur Abnahme.'],
+  ],
+  process: ['Fahrzeuganalyse', 'Demontage', 'Technische Prüfung', 'Karosserie & Mechanik', 'Aufbau & Abstimmung', 'Qualitätskontrolle', 'Fahrzeugübergabe'],
+} as const
