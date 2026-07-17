@@ -5,8 +5,8 @@ import * as THREE from 'three'
 import partMap from '../../config/mustangPartMap.json'
 
 const MODEL_PATH = '/models/ford-mustang-1969.glb'
-const BLUEPRINT_COLOR = new THREE.Color('#819ca9')
-const BLUEPRINT_EMISSIVE = new THREE.Color('#35252a')
+const BLUEPRINT_COLOR = new THREE.Color('#527ca5')
+const BLUEPRINT_EMISSIVE = new THREE.Color('#201927')
 const DISPLAY_LENGTH = 9.4
 const EXPLOSION_STRENGTH = 2.3
 const BASE_ROTATION_Y = -.32
@@ -48,7 +48,7 @@ function prepareModel(scene: THREE.Group): PreparedModel {
       }
     }
     if (object.geometry.getAttribute('position')) {
-      const outlineMaterial = new THREE.LineBasicMaterial({ color: '#d8e2e3', transparent: true, opacity: .52 })
+      const outlineMaterial = new THREE.LineBasicMaterial({ color: '#f4efe4', transparent: true, opacity: .52 })
       outlineMaterials.push(outlineMaterial)
       object.add(new THREE.LineSegments(new THREE.EdgesGeometry(object.geometry, 25), outlineMaterial))
     }
