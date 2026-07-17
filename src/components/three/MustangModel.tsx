@@ -10,6 +10,9 @@ const BLUEPRINT_EMISSIVE = new THREE.Color('#123b4a')
 const DISPLAY_LENGTH = 9.4
 const EXPLOSION_STRENGTH = 2.3
 const BASE_ROTATION_Y = -.32
+const EXPLODED_OFFSETS: Record<string, [number, number, number]> = {
+  bodyPaint: [0, .35, 0], darkMechanical: [0, -.45, 0], brakes: [0, -.7, 0], chrome: [0, .05, .25], clearGlass: [0, .7, 0], interior: [0, .25, -.3], mirror: [0, .65, .85], frontLights: [-.55, .18, 0], rearLights: [.55, .18, 0], allWheelDetailsCombined: [0, -.05, .65], wheelFrontRight: [.65, -.1, .42], wheelFrontLeft: [-.65, -.1, .42], wheelRearLeft: [-.65, -.1, -.42], wheelRearRight: [.65, -.1, -.42], allTiresCombined: [0, -.28, 0], licensePlate: [-.75, .12, 0],
+}
 
 type Props = { reduced: boolean; assembled: boolean }
 type AnimatedNode = { object: THREE.Object3D; base: THREE.Vector3; offset: THREE.Vector3; target: THREE.Vector3 }
@@ -17,6 +20,8 @@ type MaterialState = { material: THREE.MeshStandardMaterial; color: THREE.Color;
 type PreparedModel = { model: THREE.Group; animatedNodes: AnimatedNode[]; materialStates: MaterialState[]; outlineMaterials: THREE.LineBasicMaterial[]; meshes: THREE.Mesh[] }
 
 function groupOffset(group: string): THREE.Vector3 {
+  const detailedOffset = EXPLODED_OFFSETS[group]
+  if (detailedOffset) return new THREE.Vector3(...detailedOffset)
   const configured = partMap.recommendedExplodedView[group as keyof typeof partMap.recommendedExplodedView]
   if (configured) return new THREE.Vector3(...configured)
   const index = Object.keys(partMap.groups).indexOf(group)
@@ -115,21 +120,28 @@ export function MustangModel({ reduced, assembled }: Props) {
       root.current.rotation.x = THREE.MathUtils.damp(root.current.rotation.x, assembled ? -state.pointer.y * .08 : 0, 3, delta)
     }
 
-    if (import.meta.env.DEV) {
-      const maxDistance = Math.max(...activePrepared.animatedNodes.map((node) => node.object.position.distanceTo(node.base)))
-      const allVisible = activePrepared.meshes.every((mesh) => mesh.visible)
-      const validMaterials = activePrepared.materialStates.every(({ material, originalOpacity, originalTransparent, originalDepthWrite, originalDepthTest }) => Number.isFinite(material.opacity) && Number.isFinite(material.metalness) && Number.isFinite(material.roughness) && material.opacity === originalOpacity && material.transparent === originalTransparent && material.depthWrite === originalDepthWrite && material.depthTest === originalDepthTest)
-      if (assemblyProgress.current < .01 && !validationState.current.exploded) {
-        const movedNodes = activePrepared.animatedNodes.filter((node) => node.object.position.distanceTo(node.base) > .05).length
+    if (import.meta.env.DEV && assemblyProgress.current < .01 && !validationState.current.exploded) {
+        let movedNodes = 0
+        let maxDistance = 0
+        for (const node of activePrepared.animatedNodes) {
+          const distance = node.object.position.distanceTo(node.base)
+          if (distance > .05) movedNodes += 1
+          maxDistance = Math.max(maxDistance, distance)
+        }
+        const allVisible = activePrepared.meshes.every((mesh) => mesh.visible)
+        const validMaterials = activePrepared.materialStates.every(({ material, originalOpacity, originalTransparent, originalDepthWrite, originalDepthTest }) => Number.isFinite(material.opacity) && Number.isFinite(material.metalness) && Number.isFinite(material.roughness) && material.opacity === originalOpacity && material.transparent === originalTransparent && material.depthWrite === originalDepthWrite && material.depthTest === originalDepthTest)
         console.info('Mustang exploded-state check', { movedNodes, maxDistance, allVisible, validMaterials })
         validationState.current.exploded = true
         validationState.current.assembled = false
-      }
-      if (assemblyProgress.current > .99 && !validationState.current.assembled) {
+    }
+    if (import.meta.env.DEV && assemblyProgress.current > .99 && !validationState.current.assembled) {
+        let maxDistance = 0
+        for (const node of activePrepared.animatedNodes) maxDistance = Math.max(maxDistance, node.object.position.distanceTo(node.base))
+        const allVisible = activePrepared.meshes.every((mesh) => mesh.visible)
+        const validMaterials = activePrepared.materialStates.every(({ material, originalOpacity, originalTransparent, originalDepthWrite, originalDepthTest }) => Number.isFinite(material.opacity) && Number.isFinite(material.metalness) && Number.isFinite(material.roughness) && material.opacity === originalOpacity && material.transparent === originalTransparent && material.depthWrite === originalDepthWrite && material.depthTest === originalDepthTest)
         console.info('Mustang assembled-state check', { maxDistance, allVisible, validMaterials, meshCount: activePrepared.meshes.length })
         validationState.current.assembled = true
         validationState.current.exploded = false
-      }
     }
   })
 
