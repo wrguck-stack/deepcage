@@ -12,11 +12,12 @@ const EXPLOSION_STRENGTH = 2.3
 const BASE_ROTATION_Y = -.32
 const FRONT_ROTATION_Y = Math.atan2(-6.8, 8)
 const AUTO_ROTATION_SPEED = Math.PI / 18
+const ROOT_POSITION = new THREE.Vector3(.25, -.05, 0)
 const EXPLODED_OFFSETS: Record<string, [number, number, number]> = {
   bodyPaint: [0, .35, 0], darkMechanical: [0, -.45, 0], brakes: [0, -.7, 0], chrome: [0, .05, .25], clearGlass: [0, .7, 0], interior: [0, .25, -.3], mirror: [0, .65, .85], frontLights: [-.55, .18, 0], rearLights: [.55, .18, 0], allWheelDetailsCombined: [0, -.05, .65], wheelFrontRight: [.65, -.1, .42], wheelFrontLeft: [-.65, -.1, .42], wheelRearLeft: [-.65, -.1, -.42], wheelRearRight: [.65, -.1, -.42], allTiresCombined: [0, -.28, 0], licensePlate: [-.75, .12, 0],
 }
 
-type Props = { reduced: boolean; assembled: boolean }
+type Props = { reduced: boolean; assembled: boolean; onBoundsReady?: (sphere: THREE.Sphere) => void }
 type AnimatedNode = { object: THREE.Object3D; base: THREE.Vector3; displayOffset: THREE.Vector3; target: THREE.Vector3; baseWorld: THREE.Vector3; worldPosition: THREE.Vector3 }
 type MaterialState = { material: THREE.MeshStandardMaterial; color: THREE.Color; emissive: THREE.Color; emissiveIntensity: number; metalness: number; roughness: number; originalOpacity: number; originalTransparent: boolean; originalDepthWrite: boolean; originalDepthTest: boolean }
 type PreparedModel = { model: THREE.Group; animatedNodes: AnimatedNode[]; materialStates: MaterialState[]; outlineMaterials: THREE.LineBasicMaterial[]; meshes: THREE.Mesh[] }
@@ -50,7 +51,7 @@ function prepareModel(scene: THREE.Group): PreparedModel {
       }
     }
     if (object.geometry.getAttribute('position')) {
-      const outlineMaterial = new THREE.LineBasicMaterial({ color: '#f4efe4', transparent: true, opacity: .52 })
+      const outlineMaterial = new THREE.LineBasicMaterial({ color: '#000000', transparent: true, opacity: .52 })
       outlineMaterials.push(outlineMaterial)
       object.add(new THREE.LineSegments(new THREE.EdgesGeometry(object.geometry, 25), outlineMaterial))
     }
@@ -87,7 +88,21 @@ function applyMaterialState(state: MaterialState, progress: number) {
 }
 
 function applyOutlineState(outline: THREE.LineBasicMaterial, progress: number) {
+  outline.color.set('#000000')
   outline.opacity = THREE.MathUtils.lerp(.52, .08, progress)
+}
+
+
+function calculateExplodedBounds(prepared: PreparedModel, scale: number): THREE.Sphere {
+  const localExplosionFactor = EXPLOSION_STRENGTH / Math.max(scale, .00000001)
+  const originalPositions = prepared.animatedNodes.map((node) => node.object.position.clone())
+  for (const node of prepared.animatedNodes) node.object.position.copy(node.base).addScaledVector(node.displayOffset, localExplosionFactor)
+  prepared.model.updateMatrixWorld(true)
+  const sphere = new THREE.Box3().setFromObject(prepared.model).getBoundingSphere(new THREE.Sphere())
+  sphere.center.add(ROOT_POSITION)
+  for (const [index, node] of prepared.animatedNodes.entries()) node.object.position.copy(originalPositions[index])
+  prepared.model.updateMatrixWorld(true)
+  return sphere
 }
 
 function writeBaseWorldPosition(node: AnimatedNode) {
@@ -98,7 +113,7 @@ function nearestEquivalentAngle(angle: number, reference: number) {
   return angle + Math.round((reference - angle) / (Math.PI * 2)) * Math.PI * 2
 }
 
-export function MustangModel({ reduced, assembled }: Props) {
+export function MustangModel({ reduced, assembled, onBoundsReady }: Props) {
   const { scene } = useGLTF(MODEL_PATH)
   const root = useRef<THREE.Group>(null)
   const assemblyProgress = useRef(0)
@@ -119,12 +134,13 @@ export function MustangModel({ reduced, assembled }: Props) {
     prepared.model.scale.setScalar(scale)
     for (const node of prepared.animatedNodes) node.object.position.copy(node.base)
     root.current?.updateMatrixWorld(true)
+    onBoundsReady?.(calculateExplodedBounds(prepared, scale))
     for (const node of prepared.animatedNodes) writeBaseWorldPosition(node)
     assemblyProgress.current = reduced ? 1 : 0
     const localExplosionFactor = EXPLOSION_STRENGTH / Math.max(scale, .00000001)
     if (!reduced) for (const node of prepared.animatedNodes) node.object.position.addScaledVector(node.displayOffset, localExplosionFactor)
     prepared.model.updateMatrixWorld(true)
-  }, [prepared, reduced])
+  }, [onBoundsReady, prepared, reduced])
 
   useFrame((_, delta) => {
     const activePrepared = preparedRef.current
@@ -185,7 +201,7 @@ export function MustangModel({ reduced, assembled }: Props) {
     }
   })
 
-  return <group ref={root} position={[.25, -.05, 0]} rotation={[0, BASE_ROTATION_Y, 0]}><primitive object={prepared.model} /></group>
+  return <group ref={root} position={ROOT_POSITION} rotation={[0, BASE_ROTATION_Y, 0]}><primitive object={prepared.model} /></group>
 }
 
 useGLTF.preload(MODEL_PATH)
